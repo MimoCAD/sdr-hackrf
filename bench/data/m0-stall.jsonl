@@ -1,0 +1,11 @@
+{"tag":"open","t":0.0000,"host_bytes":0,"m0_count":60054880,"m4_count":60047360,"shortfalls":0,"longest":0,"active_mode":0,"error":0}
+{"tag":"run0-start","t":0.0000,"host_bytes":0,"m0_count":60054880,"m4_count":60047360,"shortfalls":0,"longest":0,"active_mode":0,"error":0}
+{"tag":"run0-stall-from","t":1.0006,"host_bytes":19988480,"m0_count":20003392,"m4_count":19988480,"shortfalls":0,"longest":0,"active_mode":2,"error":0}
+{"tag":"run0-stall-to","t":1.2110,"host_bytes":19988480,"m0_count":20283392,"m4_count":20250624,"shortfalls":1,"longest":3929344,"active_mode":2,"error":0}
+{"tag":"run0-before-finish","t":3.0002,"host_bytes":56033280,"m0_count":56047488,"m4_count":56033280,"shortfalls":1,"longest":3946784,"active_mode":2,"error":0}
+{"tag":"run0-report","host_bytes":56033280,"tail_bytes":11264,"report":"StreamReport { samples: 28022272, shortfalls: 1, longest_shortfall: 1973392, left_in_device: 5008, breaks: [] }"}
+{"tag":"run1-start","t":0.0000,"host_bytes":0,"m0_count":56054560,"m4_count":56033280,"shortfalls":1,"longest":3946784,"active_mode":0,"error":0}
+{"tag":"run1-stall-from","t":1.0006,"host_bytes":19988480,"m0_count":20001792,"m4_count":19988480,"shortfalls":0,"longest":0,"active_mode":2,"error":0}
+{"tag":"run1-stall-to","t":1.2108,"host_bytes":19988480,"m0_count":20283392,"m4_count":20250624,"shortfalls":1,"longest":3924352,"active_mode":2,"error":0}
+{"tag":"run1-before-finish","t":3.0029,"host_bytes":56098816,"m0_count":56109952,"m4_count":56098816,"shortfalls":1,"longest":3937920,"active_mode":2,"error":0}
+{"tag":"run1-report","host_bytes":56098816,"tail_bytes":0,"report":"StreamReport { samples: 28049408, shortfalls: 1, longest_shortfall: 1968960, left_in_device: 7648, breaks: [] }"}

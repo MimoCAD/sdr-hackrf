@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sdr-hackrf over WebUSB</title>
+<style>
+  body { font: 14px/1.4 ui-monospace, monospace; margin: 2em; max-width: 60em; }
+  button { font: inherit; padding: .4em 1em; margin-right: .5em; }
+  pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>sdr-hackrf over WebUSB</h1>
+<p>A HackRF, driven from Rust compiled to WebAssembly, in a Chromium-family
+browser. The first click opens the browser's device chooser.</p>
+<button id="receive">Receive check</button>
+<button id="transmit">Transmit check</button>
+<label><input type="checkbox" id="cabled"> the antenna port is cabled to a receiver through attenuation; nothing radiates</label>
+<pre id="out"></pre>
+<script type="module">
+  import init, { receive_check, transmit_check } from "./pkg/sdr_hackrf_web.js";
+  const out = document.getElementById("out");
+  const q = new URLSearchParams(location.search);
+  const auto = q.get("auto");
+  // Opened as ?auto=…, every line also goes to the server (POST /log).
+  const log = (text) => {
+    out.textContent += text + "\n";
+    if (auto) fetch("/log", { method: "POST", body: text }).catch(() => {});
+  };
+  await init();
+  if (!navigator.usb) log("This browser has no WebUSB (Chrome, Edge or another Chromium browser has).");
+  const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d);
+  const receive = () => receive_check(log, num("rate", 0), num("transfer", 0), num("depth", 0), num("seconds", 0), num("changes", 3));
+  const cabled = () => document.getElementById("cabled").checked || q.get("cabled") === "1";
+  const transmit = () => transmit_check(log, cabled(), num("rate", 0), num("seconds", 0));
+  const run = (f) => async () => {
+    try { log("result: " + await f(log)); }
+    catch (e) { log("error: " + e); }
+    if (auto) log("done");
+  };
+  document.getElementById("receive").onclick = run(receive);
+  document.getElementById("transmit").onclick = run(transmit);
+  if (auto === "receive") run(receive)();
+  if (auto === "transmit") run(transmit)();
+</script>
+</body>
+</html>

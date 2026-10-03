@@ -1,0 +1,25 @@
+[package]
+name = "sdr-hackrf-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "sdr-hackrf in a browser over WebUSB: the proof page"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# Its own root: built for wasm32 only (`.cargo/config.toml`).
+[workspace]
+
+[dependencies]
+sdr-hackrf = { path = ".." }
+sdr-core = { version = "0.1", default-features = false, features = ["usb"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+# Inside the mimosdr tree, the sibling sdr-core; on its own, crates.io's.
+[patch.crates-io]
+sdr-core = { path = "../../sdr-core" }

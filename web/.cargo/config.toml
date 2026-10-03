@@ -1,0 +1,7 @@
+# WebUSB's bindings in web-sys are behind this cfg (nusb's WebUSB backend
+# needs them).
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg=web_sys_unstable_apis"]

@@ -1,0 +1,43 @@
+[package]
+name = "sdr-hackrf"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "A pure-Rust HackRF One driver over nusb: receive and transmit, no libusb, no libhackrf"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/MimoCAD/sdr-hackrf"
+readme = "README.md"
+keywords = ["sdr", "hackrf", "radio", "usb"]
+categories = ["hardware-support"]
+exclude = ["bench/", "examples/", "web/"]
+
+[lib]
+doctest = false
+
+# A HackRF driver, receive and transmit. No libusb, no libhackrf:
+# this crate → nusb → the OS (or WebUSB in a browser).
+[dependencies]
+sdr-core = { version = "0.1", default-features = false }
+# Pure-Rust userspace USB (IOKit/usbfs directly, no libusb; WebUSB on
+# wasm32). Runtime-agnostic like everything else here.
+nusb = { version = "0.2", optional = true }
+
+[features]
+default = ["std"]
+# The radio: the USB requests, `HackRf`, `Stream` and `TxStream`. Off, the
+# crate is no_std with alloc (the protocol's encodings and the gain steps).
+std = ["dep:nusb", "sdr-core/usb"]
+
+[dev-dependencies]
+
+[[example]]
+name = "m0probe"
+
+[[example]]
+name = "breakcheck"
+
+[[example]]
+name = "txcheck"
+
+[[example]]
+name = "retunecheck"

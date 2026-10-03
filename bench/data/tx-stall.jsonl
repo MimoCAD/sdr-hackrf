@@ -1,0 +1,14 @@
+{"tag":"poll","t":0.2513,"written_bytes":4259840,"m0_count":3974400,"m4_count":3997696,"shortfalls":0,"longest":0,"active_mode":4}
+{"tag":"poll","t":0.5011,"written_bytes":8257536,"m0_count":7971424,"m4_count":7995392,"shortfalls":0,"longest":0,"active_mode":4}
+{"tag":"poll","t":0.7509,"written_bytes":12255232,"m0_count":11969120,"m4_count":11993088,"shortfalls":0,"longest":0,"active_mode":4}
+{"tag":"stall-from","t":1.0008,"written_bytes":16252928,"m0_count":15967008,"m4_count":15990784,"shortfalls":0,"longest":0,"active_mode":4}
+{"tag":"stall-to","t":1.2111,"written_bytes":16252928,"m0_count":16252928,"m4_count":16252928,"shortfalls":1,"longest":3079808,"active_mode":4}
+{"tag":"poll","t":1.2114,"written_bytes":16252928,"m0_count":16252928,"m4_count":16252928,"shortfalls":1,"longest":3084640,"active_mode":4}
+{"tag":"poll","t":1.2504,"written_bytes":17137664,"m0_count":16852992,"m4_count":16875520,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"poll","t":1.5002,"written_bytes":21135360,"m0_count":20849696,"m4_count":20873216,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"poll","t":1.7500,"written_bytes":25133056,"m0_count":24847200,"m4_count":24870912,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"poll","t":2.0019,"written_bytes":29163520,"m0_count":28877376,"m4_count":28901376,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"poll","t":2.2518,"written_bytes":33161216,"m0_count":32875104,"m4_count":32899072,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"poll","t":2.5017,"written_bytes":37158912,"m0_count":36873344,"m4_count":36896768,"shortfalls":1,"longest":3107904,"active_mode":4}
+{"tag":"report","rate":8000000,"written_samples":18579456,"finish_ms":18.1,"report":"TxReport { samples: 18579456, underruns: 1, longest_underrun: 1553952, sent_all: true, breaks: [] }"}
+{"tag":"after-finish","t":2.5202,"written_bytes":37158912,"m0_count":37158912,"m4_count":37158912,"shortfalls":1,"longest":3107904,"active_mode":0}
