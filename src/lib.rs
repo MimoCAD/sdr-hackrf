@@ -171,6 +171,8 @@ pub async fn list() -> Vec<DeviceDesc> {
 /// An open HackRF.
 #[cfg(feature = "std")]
 pub struct HackRf {
+    /// Control requests go to it on WebUSB only ([`HackRf::control_handle`]).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     device: nusb::Device,
     interface: nusb::Interface,
     label: String,
@@ -263,6 +265,20 @@ impl HackRf {
         &self.interface
     }
 
+    /// Where vendor control requests go: natively the claimed interface —
+    /// WinUSB has no device-level control transfers, so nusb's
+    /// `Device::control_in` / `control_out` don't exist on Windows (Linux and
+    /// macOS take them on the interface just the same; the recipient stays
+    /// `Device`); on WebUSB the device, as before.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn control_handle(&self) -> &nusb::Interface {
+        &self.interface
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn control_handle(&self) -> &nusb::Device {
+        &self.device
+    }
+
     async fn ctrl_out(&self, request: u8, value: u16, index: u16, data: &[u8]) -> Result<()> {
         let req = ControlOut {
             control_type: ControlType::Vendor,
@@ -272,7 +288,8 @@ impl HackRf {
             index,
             data,
         };
-        complete!(self.device.control_out(req, CTRL_TIMEOUT)).map_err(|e| usb_err("control_out", e))
+        complete!(self.control_handle().control_out(req, CTRL_TIMEOUT))
+            .map_err(|e| usb_err("control_out", e))
     }
 
     async fn ctrl_in(&self, request: u8, value: u16, index: u16, length: u16) -> Result<Vec<u8>> {
@@ -284,7 +301,8 @@ impl HackRf {
             index,
             length,
         };
-        complete!(self.device.control_in(req, CTRL_TIMEOUT)).map_err(|e| usb_err("control_in", e))
+        complete!(self.control_handle().control_in(req, CTRL_TIMEOUT))
+            .map_err(|e| usb_err("control_in", e))
     }
 
     pub(crate) async fn set_transceiver_mode(&self, mode: u16) -> Result<()> {
@@ -587,7 +605,7 @@ impl Drop for HackRf {
                 index: 0,
                 data: &[],
             };
-            let _ = nusb::MaybeFuture::wait(self.device.control_out(req, CTRL_TIMEOUT));
+            let _ = nusb::MaybeFuture::wait(self.control_handle().control_out(req, CTRL_TIMEOUT));
         }
     }
 }
