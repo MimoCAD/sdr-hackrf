@@ -101,7 +101,10 @@ mod tests {
     #[test]
     fn stages_convert_to_and_from_the_shared_names() {
         for s in Stage::ALL {
-            assert_eq!(Stage::try_from(sdr_core::gain::Stage::from(s)).ok(), Some(s));
+            assert_eq!(
+                Stage::try_from(sdr_core::gain::Stage::from(s)).ok(),
+                Some(s)
+            );
         }
         assert!(Stage::try_from(sdr_core::gain::Stage::Mixer).is_err());
         assert!(Stage::try_from(sdr_core::gain::Stage::Pga).is_err());

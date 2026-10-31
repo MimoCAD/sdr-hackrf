@@ -91,7 +91,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         breaks.push((k, b));
     }
     let (bytes, reader) = read_thread.join().expect("the reading thread")?;
-    let report = Stream::reunite(reader, control).map_err(|_| "reunite")?.finish()?.report;
+    let report = Stream::reunite(reader, control)
+        .map_err(|_| "reunite")?
+        .finish()?
+        .report;
 
     let n_windows = bytes.len() / (2 * WINDOW);
     let window = |w: usize| &bytes[2 * WINDOW * w..2 * WINDOW * (w + 1)];
@@ -107,7 +110,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let takeover = (from..to).find(|&w| mag(w, new_off) > mag(w, old_off));
         let Some(t) = takeover else {
-            println!("{{\"break\":{k},\"at_sample\":{},\"settled_at\":{},\"takeover\":null}}", b.at_sample, b.settled_at);
+            println!(
+                "{{\"break\":{k},\"at_sample\":{},\"settled_at\":{},\"takeover\":null}}",
+                b.at_sample, b.settled_at
+            );
             continue;
         };
         // The frequency against the new offset in FREQ_WINDOW windows from
@@ -115,7 +121,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let t_s = (t * WINDOW) as i64;
         let fw = |j: usize| {
             let n0 = t * WINDOW + j * FREQ_WINDOW;
-            (n0 + FREQ_WINDOW <= bytes.len() / 2).then(|| corr(&bytes[2 * n0..2 * (n0 + FREQ_WINDOW)], n0, new_off, rate))
+            (n0 + FREQ_WINDOW <= bytes.len() / 2)
+                .then(|| corr(&bytes[2 * n0..2 * (n0 + FREQ_WINDOW)], n0, new_off, rate))
         };
         let last = ((to * WINDOW).saturating_sub(t * WINDOW)) / FREQ_WINDOW;
         let mut run = 0;
@@ -123,14 +130,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut trace = Vec::new();
         let mut prev = fw(0);
         for j in 1..last {
-            let (Some(p), Some(c)) = (prev, fw(j)) else { break };
+            let (Some(p), Some(c)) = (prev, fw(j)) else {
+                break;
+            };
             let dph = (c.1 * p.0 - c.0 * p.1).atan2(c.0 * p.0 + c.1 * p.1);
             let err_hz = dph / TAU * rate / FREQ_WINDOW as f64;
             if trace.len() < TRACE {
                 trace.push(err_hz.round() as i64);
             }
             prev = Some(c);
-            run = if err_hz.abs() <= SETTLED_HZ { run + 1 } else { 0 };
+            run = if err_hz.abs() <= SETTLED_HZ {
+                run + 1
+            } else {
+                0
+            };
             if run == SETTLED_FOR && settled.is_none() {
                 settled = Some(j - SETTLED_FOR);
             }

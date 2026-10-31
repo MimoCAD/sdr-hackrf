@@ -24,7 +24,10 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 
 use sdr_core::gain::StageReading;
-use sdr_core::{DeviceDesc, Error, Iq, RecvInfo, Result, RxSource, TuneRequest, TuneResult, block_on, elevate_current_thread, open_with_deadline};
+use sdr_core::{
+    DeviceDesc, Error, Iq, RecvInfo, Result, RxSource, TuneRequest, TuneResult, block_on,
+    elevate_current_thread, open_with_deadline,
+};
 
 use crate::session::{self, Break, StreamReport};
 use crate::{BACKEND, M0State, Stage, TxReport};
@@ -168,13 +171,25 @@ impl HackRf {
     }
 
     /// [`crate::HackRf::into_stream`].
-    pub fn into_stream(self, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<Stream, StreamError> {
-        block_on(self.0.into_stream(transfer_bytes, queue_depth)).map(Stream).map_err(StreamError::from)
+    pub fn into_stream(
+        self,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<Stream, StreamError> {
+        block_on(self.0.into_stream(transfer_bytes, queue_depth))
+            .map(Stream)
+            .map_err(StreamError::from)
     }
 
     /// [`crate::HackRf::into_tx_stream`].
-    pub fn into_tx_stream(self, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<TxStream, StreamError> {
-        block_on(self.0.into_tx_stream(transfer_bytes, queue_depth)).map(TxStream).map_err(StreamError::from)
+    pub fn into_tx_stream(
+        self,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<TxStream, StreamError> {
+        block_on(self.0.into_tx_stream(transfer_bytes, queue_depth))
+            .map(TxStream)
+            .map_err(StreamError::from)
     }
 }
 
@@ -187,7 +202,10 @@ pub struct StreamError {
 
 impl From<session::StreamError> for StreamError {
     fn from(e: session::StreamError) -> StreamError {
-        StreamError { hackrf: Box::new(HackRf(*e.hackrf)), error: e.error }
+        StreamError {
+            hackrf: Box::new(HackRf(*e.hackrf)),
+            error: e.error,
+        }
     }
 }
 
@@ -216,7 +234,11 @@ impl Finished {
 
 impl From<crate::Finished> for Finished {
     fn from(f: crate::Finished) -> Finished {
-        Finished { hackrf: HackRf(f.hackrf), report: f.report, tail: f.tail }
+        Finished {
+            hackrf: HackRf(f.hackrf),
+            report: f.report,
+            tail: f.tail,
+        }
     }
 }
 
@@ -228,7 +250,10 @@ pub struct TxFinished {
 
 impl From<crate::TxFinished> for TxFinished {
     fn from(f: crate::TxFinished) -> TxFinished {
-        TxFinished { hackrf: HackRf(f.hackrf), report: f.report }
+        TxFinished {
+            hackrf: HackRf(f.hackrf),
+            report: f.report,
+        }
     }
 }
 
@@ -296,7 +321,10 @@ macro_rules! rx_changes {
     ($t:ident) => {
         impl $t {
             /// [`crate::Stream::reconfigure`].
-            pub fn reconfigure<T>(&self, f: impl AsyncFnOnce(&mut crate::HackRf) -> Result<T>) -> Result<(T, Break)> {
+            pub fn reconfigure<T>(
+                &self,
+                f: impl AsyncFnOnce(&mut crate::HackRf) -> Result<T>,
+            ) -> Result<(T, Break)> {
                 block_on(self.0.reconfigure(f))
             }
 
@@ -411,7 +439,10 @@ macro_rules! tx_changes {
     ($t:ident) => {
         impl $t {
             /// [`crate::TxStream::reconfigure`].
-            pub fn reconfigure<T>(&self, f: impl AsyncFnOnce(&mut crate::HackRf) -> Result<T>) -> Result<(T, Break)> {
+            pub fn reconfigure<T>(
+                &self,
+                f: impl AsyncFnOnce(&mut crate::HackRf) -> Result<T>,
+            ) -> Result<(T, Break)> {
                 block_on(self.0.reconfigure(f))
             }
 
@@ -495,8 +526,13 @@ impl Stream {
     }
 
     /// The halves joined again ([`crate::Stream::reunite`]).
-    pub fn reunite(read: ReadHalf, control: Control) -> core::result::Result<Stream, (ReadHalf, Control)> {
-        crate::Stream::reunite(read.0, control.0).map(Stream).map_err(|(r, c)| (ReadHalf(r), Control(c)))
+    pub fn reunite(
+        read: ReadHalf,
+        control: Control,
+    ) -> core::result::Result<Stream, (ReadHalf, Control)> {
+        crate::Stream::reunite(read.0, control.0)
+            .map(Stream)
+            .map_err(|(r, c)| (ReadHalf(r), Control(c)))
     }
 
     /// [`crate::Stream::finish`].
@@ -518,8 +554,13 @@ impl TxStream {
     }
 
     /// The halves joined again ([`crate::TxStream::reunite`]).
-    pub fn reunite(write: WriteHalf, control: TxControl) -> core::result::Result<TxStream, (WriteHalf, TxControl)> {
-        crate::TxStream::reunite(write.0, control.0).map(TxStream).map_err(|(w, c)| (WriteHalf(w), TxControl(c)))
+    pub fn reunite(
+        write: WriteHalf,
+        control: TxControl,
+    ) -> core::result::Result<TxStream, (WriteHalf, TxControl)> {
+        crate::TxStream::reunite(write.0, control.0)
+            .map(TxStream)
+            .map_err(|(w, c)| (WriteHalf(w), TxControl(c)))
     }
 
     /// [`crate::TxStream::finish`].

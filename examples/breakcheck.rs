@@ -33,14 +33,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut reader, control) = h.into_stream(0, 0).map_err(|e| e.error)?.split();
     let total_s = (steps as u64 + 2) * interval_ms;
     let want_bytes = (rate * 2.0 * total_s as f64 / 1000.0) as usize;
-    let read_thread = std::thread::spawn(move || -> std::io::Result<(Vec<u8>, sdr_hackrf::blocking::ReadHalf)> {
-        let mut all = vec![0u8; want_bytes];
-        let mut got = 0;
-        while got < want_bytes {
-            got += reader.read(&mut all[got..])?;
-        }
-        Ok((all, reader))
-    });
+    let read_thread = std::thread::spawn(
+        move || -> std::io::Result<(Vec<u8>, sdr_hackrf::blocking::ReadHalf)> {
+            let mut all = vec![0u8; want_bytes];
+            let mut got = 0;
+            while got < want_bytes {
+                got += reader.read(&mut all[got..])?;
+            }
+            Ok((all, reader))
+        },
+    );
     let mut breaks = Vec::new();
     for k in 0..steps {
         std::thread::sleep(Duration::from_millis(interval_ms));
@@ -79,13 +81,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let after = median(&mut power[(b.settled_at as usize / WINDOW).min(to - 1)..to].to_vec());
         let threshold = (before + after) / 2.0;
         let rising = after > before;
-        let step = (from..to).find(|&w| if rising { power[w] > threshold } else { power[w] < threshold }).map(|w| (w * WINDOW) as i64);
+        let step = (from..to)
+            .find(|&w| {
+                if rising {
+                    power[w] > threshold
+                } else {
+                    power[w] < threshold
+                }
+            })
+            .map(|w| (w * WINDOW) as i64);
         let line = match step {
             Some(s) => {
                 let (da, ds) = (s - b.at_sample as i64, s - b.settled_at as i64);
                 offsets_at.push(da);
                 offsets_settled.push(ds);
-                format!("\"step_at\":{s},\"step_minus_at_sample\":{da},\"step_minus_settled_at\":{ds}")
+                format!(
+                    "\"step_at\":{s},\"step_minus_at_sample\":{da},\"step_minus_settled_at\":{ds}"
+                )
             }
             None => "\"step_at\":null".into(),
         };

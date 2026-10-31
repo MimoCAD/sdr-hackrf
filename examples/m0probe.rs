@@ -49,19 +49,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let info = s.recv_into(&mut buf, 0.5)?;
             host_bytes += 2 * info.n_samples as u64;
             if !stalled && t0.elapsed() >= Duration::from_secs(1) {
-                line(&format!("run{run}-stall-from"), t0.elapsed().as_secs_f64(), host_bytes, &s.m0_state()?);
+                line(
+                    &format!("run{run}-stall-from"),
+                    t0.elapsed().as_secs_f64(),
+                    host_bytes,
+                    &s.m0_state()?,
+                );
                 std::thread::sleep(Duration::from_millis(stall_ms));
-                line(&format!("run{run}-stall-to"), t0.elapsed().as_secs_f64(), host_bytes, &s.m0_state()?);
+                line(
+                    &format!("run{run}-stall-to"),
+                    t0.elapsed().as_secs_f64(),
+                    host_bytes,
+                    &s.m0_state()?,
+                );
                 stalled = true;
             }
             if poll_ms > 0 && t0.elapsed() >= next_poll {
-                line(&format!("run{run}-poll"), t0.elapsed().as_secs_f64(), host_bytes, &s.m0_state()?);
+                line(
+                    &format!("run{run}-poll"),
+                    t0.elapsed().as_secs_f64(),
+                    host_bytes,
+                    &s.m0_state()?,
+                );
                 next_poll += Duration::from_millis(poll_ms);
             }
         }
-        line(&format!("run{run}-before-finish"), t0.elapsed().as_secs_f64(), host_bytes, &s.m0_state()?);
+        line(
+            &format!("run{run}-before-finish"),
+            t0.elapsed().as_secs_f64(),
+            host_bytes,
+            &s.m0_state()?,
+        );
         let f = s.finish()?;
-        println!("{{\"tag\":\"run{run}-report\",\"host_bytes\":{host_bytes},\"tail_bytes\":{},\"report\":\"{:?}\"}}", f.tail.len(), f.report);
+        println!(
+            "{{\"tag\":\"run{run}-report\",\"host_bytes\":{host_bytes},\"tail_bytes\":{},\"report\":\"{:?}\"}}",
+            f.tail.len(),
+            f.report
+        );
         h = f.hackrf;
     }
     Ok(())

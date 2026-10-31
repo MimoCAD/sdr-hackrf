@@ -88,9 +88,10 @@ use sdr_core::{Backend, DeviceDesc, Error, Result, TunePolicy, TuneRequest, Tune
 use crate::gain::{AMP_DB, TXVGA_MAX_DB, lna_step, vga_step};
 #[cfg(feature = "std")]
 use crate::proto::{
-    AMP_ENABLE, ANTENNA_ENABLE, BASEBAND_FILTER_BANDWIDTH_SET, BOARD_ID_READ, GET_M0_STATE, KNOWN_IDS, M0_STATE_LEN,
-    MAX2837_READ, MODE_OFF, RFFC5071_READ, SAMPLE_RATE_SET, SET_FREQ, SET_LNA_GAIN, SET_TRANSCEIVER_MODE, SET_TXVGA_GAIN,
-    SET_VGA_GAIN, SI5351C_READ, VERSION_STRING_READ, filter_bw_for_rate,
+    AMP_ENABLE, ANTENNA_ENABLE, BASEBAND_FILTER_BANDWIDTH_SET, BOARD_ID_READ, GET_M0_STATE,
+    KNOWN_IDS, M0_STATE_LEN, MAX2837_READ, MODE_OFF, RFFC5071_READ, SAMPLE_RATE_SET, SET_FREQ,
+    SET_LNA_GAIN, SET_TRANSCEIVER_MODE, SET_TXVGA_GAIN, SET_VGA_GAIN, SI5351C_READ,
+    VERSION_STRING_READ, filter_bw_for_rate,
 };
 
 /// The backend name every error carries.
@@ -108,12 +109,20 @@ const CTRL_TIMEOUT: Duration = Duration::from_millis(500);
 
 #[cfg(feature = "std")]
 fn usb_err(context: &'static str, e: impl core::fmt::Display) -> Error {
-    Error::Usb { backend: BACKEND, context, message: e.to_string() }
+    Error::Usb {
+        backend: BACKEND,
+        context,
+        message: e.to_string(),
+    }
 }
 
 #[cfg(feature = "std")]
 fn rejected(context: &'static str) -> Error {
-    Error::Device { backend: BACKEND, context, message: "firmware rejected the value".into() }
+    Error::Device {
+        backend: BACKEND,
+        context,
+        message: "firmware rejected the value".into(),
+    }
 }
 
 /// The attached HackRFs this process may open (in a browser, those the
@@ -121,14 +130,24 @@ fn rejected(context: &'static str) -> Error {
 #[cfg(feature = "std")]
 async fn candidates() -> Vec<DeviceInfo> {
     match complete!(nusb::list_devices()) {
-        Ok(list) => list.filter(|d| KNOWN_IDS.iter().any(|&(v, p, _)| d.vendor_id() == v && d.product_id() == p)).collect(),
+        Ok(list) => list
+            .filter(|d| {
+                KNOWN_IDS
+                    .iter()
+                    .any(|&(v, p, _)| d.vendor_id() == v && d.product_id() == p)
+            })
+            .collect(),
         Err(_) => Vec::new(),
     }
 }
 
 #[cfg(feature = "std")]
 fn label_of(d: &DeviceInfo) -> String {
-    format!("{} (serial {})", d.product_string().unwrap_or("HackRF"), d.serial_number().unwrap_or("?"))
+    format!(
+        "{} (serial {})",
+        d.product_string().unwrap_or("HackRF"),
+        d.serial_number().unwrap_or("?")
+    )
 }
 
 /// Every attached HackRF, as `hackrf:serial=<sn>` (or `hackrf:` when the
@@ -167,7 +186,9 @@ pub struct HackRf {
 #[cfg(feature = "std")]
 impl core::fmt::Debug for HackRf {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("HackRf").field("label", &self.label).finish_non_exhaustive()
+        f.debug_struct("HackRf")
+            .field("label", &self.label)
+            .finish_non_exhaustive()
     }
 }
 
@@ -179,7 +200,9 @@ impl HackRf {
     /// bounds a native open with `sdr_core::open_with_deadline`: a wedged
     /// device can enumerate and then never answer.)
     pub async fn open(rest: &str) -> Result<HackRf> {
-        let not_found = || Error::NotFound { spec: format!("hackrf:{rest}") };
+        let not_found = || Error::NotFound {
+            spec: format!("hackrf:{rest}"),
+        };
         let want_serial = rest.strip_prefix("serial=");
         if !rest.is_empty() && want_serial.is_none() {
             return Err(not_found());
@@ -198,19 +221,35 @@ impl HackRf {
     /// the grant, so later [`HackRf::open`] calls find it without asking.
     #[cfg(target_arch = "wasm32")]
     pub async fn request() -> Result<HackRf> {
-        let selectors: Vec<nusb::DeviceSelector> = KNOWN_IDS.iter().map(|&(v, p, _)| nusb::DeviceSelector::all().with_vid_pid(v, p)).collect();
+        let selectors: Vec<nusb::DeviceSelector> = KNOWN_IDS
+            .iter()
+            .map(|&(v, p, _)| nusb::DeviceSelector::all().with_vid_pid(v, p))
+            .collect();
         let info = nusb::request_device(&selectors)
             .await
             .map_err(|e| usb_err("request device", e))?
-            .ok_or_else(|| Error::NotFound { spec: "hackrf: (no device chosen)".into() })?;
+            .ok_or_else(|| Error::NotFound {
+                spec: "hackrf: (no device chosen)".into(),
+            })?;
         HackRf::open_info(info).await
     }
 
     async fn open_info(info: DeviceInfo) -> Result<HackRf> {
         let label = label_of(&info);
         let device = complete!(info.open()).map_err(|e| usb_err("open", e))?;
-        let interface = complete!(device.claim_interface(0)).map_err(|e| usb_err("claim_interface", e))?;
-        let h = HackRf { device, interface, label, rate_hz: 0.0, freq_hz: 0.0, lna_db: 16, vga_db: 20, txvga_db: 0, amp_on: false };
+        let interface =
+            complete!(device.claim_interface(0)).map_err(|e| usb_err("claim_interface", e))?;
+        let h = HackRf {
+            device,
+            interface,
+            label,
+            rate_hz: 0.0,
+            freq_hz: 0.0,
+            lna_db: 16,
+            vga_db: 20,
+            txvga_db: 0,
+            amp_on: false,
+        };
         // Known state: the transceiver off until a stream starts it.
         h.set_transceiver_mode(MODE_OFF).await?;
         Ok(h)
@@ -225,12 +264,26 @@ impl HackRf {
     }
 
     async fn ctrl_out(&self, request: u8, value: u16, index: u16, data: &[u8]) -> Result<()> {
-        let req = ControlOut { control_type: ControlType::Vendor, recipient: Recipient::Device, request, value, index, data };
+        let req = ControlOut {
+            control_type: ControlType::Vendor,
+            recipient: Recipient::Device,
+            request,
+            value,
+            index,
+            data,
+        };
         complete!(self.device.control_out(req, CTRL_TIMEOUT)).map_err(|e| usb_err("control_out", e))
     }
 
     async fn ctrl_in(&self, request: u8, value: u16, index: u16, length: u16) -> Result<Vec<u8>> {
-        let req = ControlIn { control_type: ControlType::Vendor, recipient: Recipient::Device, request, value, index, length };
+        let req = ControlIn {
+            control_type: ControlType::Vendor,
+            recipient: Recipient::Device,
+            request,
+            value,
+            index,
+            length,
+        };
         complete!(self.device.control_in(req, CTRL_TIMEOUT)).map_err(|e| usb_err("control_in", e))
     }
 
@@ -246,7 +299,10 @@ impl HackRf {
     pub async fn set_rate(&mut self, rate_sps: f64) -> Result<()> {
         let hz = rate_sps.round() as u32;
         if !(RATE_RANGE_SPS.0 as u32..=RATE_RANGE_SPS.1 as u32).contains(&hz) {
-            return Err(Error::Unsupported { backend: BACKEND, what: format!("sample rate {hz} Hz (valid: 1–20 Msps)") });
+            return Err(Error::Unsupported {
+                backend: BACKEND,
+                what: format!("sample rate {hz} Hz (valid: 1–20 Msps)"),
+            });
         }
         let mut buf = [0u8; 8];
         buf[..4].copy_from_slice(&hz.to_le_bytes());
@@ -263,13 +319,20 @@ impl HackRf {
     }
 
     async fn write_filter(&self, bw: u32) -> Result<()> {
-        self.ctrl_out(BASEBAND_FILTER_BANDWIDTH_SET, (bw & 0xffff) as u16, (bw >> 16) as u16, &[]).await
+        self.ctrl_out(
+            BASEBAND_FILTER_BANDWIDTH_SET,
+            (bw & 0xffff) as u16,
+            (bw >> 16) as u16,
+            &[],
+        )
+        .await
     }
 
     /// Baseband filter bandwidth override (after `set_rate`, which resets it
     /// to the 75% policy). Snaps to the MAX2837's plan table.
     pub async fn set_bandwidth(&mut self, bw_hz: f64) -> Result<()> {
-        self.write_filter(filter_bw_for_rate((bw_hz / 0.75) as u32)).await
+        self.write_filter(filter_bw_for_rate((bw_hz / 0.75) as u32))
+            .await
     }
 
     pub async fn set_freq(&mut self, req: &TuneRequest) -> Result<TuneResult> {
@@ -280,7 +343,10 @@ impl HackRf {
         if let TunePolicy::Manual(x) = req.dsp
             && x != 0.0
         {
-            return Err(Error::Unsupported { backend: BACKEND, what: "manual DSP tune (the HackRF has no post-LO DSP stage)".into() });
+            return Err(Error::Unsupported {
+                backend: BACKEND,
+                what: "manual DSP tune (the HackRF has no post-LO DSP stage)".into(),
+            });
         }
         let hz = rf_target.round() as u64;
         let mut buf = [0u8; 8];
@@ -332,9 +398,18 @@ impl HackRf {
     pub fn stage_readings(&self) -> Vec<StageReading<Stage>> {
         let reading = |stage: Stage, db: u16| {
             let levels = gain::stage_levels_db(stage);
-            StageReading { stage, level: nearest_level(&levels, db as f64), levels: levels.len(), db: db as f64 }
+            StageReading {
+                stage,
+                level: nearest_level(&levels, db as f64),
+                levels: levels.len(),
+                db: db as f64,
+            }
         };
-        vec![reading(Stage::Amp, if self.amp_on { AMP_DB } else { 0 }), reading(Stage::Lna, self.lna_db), reading(Stage::Vga, self.vga_db)]
+        vec![
+            reading(Stage::Amp, if self.amp_on { AMP_DB } else { 0 }),
+            reading(Stage::Lna, self.lna_db),
+            reading(Stage::Vga, self.vga_db),
+        ]
     }
 
     /// One receive stage to a level of [`gain::stage_levels_db`] (clamped
@@ -416,37 +491,60 @@ impl HackRf {
     /// The board ID byte (2 = HackRF One).
     pub async fn board_id(&self) -> Result<u8> {
         let r = self.ctrl_in(BOARD_ID_READ, 0, 0, 1).await?;
-        r.first().copied().ok_or_else(|| Error::Device { backend: BACKEND, context: "board_id", message: "empty response".into() })
+        r.first().copied().ok_or_else(|| Error::Device {
+            backend: BACKEND,
+            context: "board_id",
+            message: "empty response".into(),
+        })
     }
 
     /// The firmware's version string.
     pub async fn version_string(&self) -> Result<String> {
         let r = self.ctrl_in(VERSION_STRING_READ, 0, 0, 64).await?;
-        Ok(String::from_utf8_lossy(&r).trim_end_matches('\0').to_string())
+        Ok(String::from_utf8_lossy(&r)
+            .trim_end_matches('\0')
+            .to_string())
     }
 
     /// A MAX2837 register, through the firmware's debug read.
     pub async fn max2837_read(&self, reg: u16) -> Result<u16> {
         let r = self.ctrl_in(MAX2837_READ, 0, reg, 2).await?;
-        Ok(u16::from_le_bytes([r.first().copied().unwrap_or(0), r.get(1).copied().unwrap_or(0)]))
+        Ok(u16::from_le_bytes([
+            r.first().copied().unwrap_or(0),
+            r.get(1).copied().unwrap_or(0),
+        ]))
     }
 
     /// An Si5351C register, through the firmware's debug read.
     pub async fn si5351c_read(&self, reg: u16) -> Result<u8> {
-        Ok(self.ctrl_in(SI5351C_READ, 0, reg, 1).await?.first().copied().unwrap_or(0))
+        Ok(self
+            .ctrl_in(SI5351C_READ, 0, reg, 1)
+            .await?
+            .first()
+            .copied()
+            .unwrap_or(0))
     }
 
     /// An RFFC5071/5072 register, through the firmware's debug read.
     pub async fn rffc5071_read(&self, reg: u16) -> Result<u16> {
         let r = self.ctrl_in(RFFC5071_READ, 0, reg, 2).await?;
-        Ok(u16::from_le_bytes([r.first().copied().unwrap_or(0), r.get(1).copied().unwrap_or(0)]))
+        Ok(u16::from_le_bytes([
+            r.first().copied().unwrap_or(0),
+            r.get(1).copied().unwrap_or(0),
+        ]))
     }
 
     /// The M0 core's own transfer and shortfall accounting ([`M0State`]).
     /// `Unsupported` on firmware that predates the request.
     pub async fn m0_state(&self) -> Result<M0State> {
-        let old_fw = || Error::Unsupported { backend: BACKEND, what: "M0 state readback (needs firmware ≥ 2021.03)".into() };
-        let r = self.ctrl_in(GET_M0_STATE, 0, 0, M0_STATE_LEN).await.map_err(|_| old_fw())?;
+        let old_fw = || Error::Unsupported {
+            backend: BACKEND,
+            what: "M0 state readback (needs firmware ≥ 2021.03)".into(),
+        };
+        let r = self
+            .ctrl_in(GET_M0_STATE, 0, 0, M0_STATE_LEN)
+            .await
+            .map_err(|_| old_fw())?;
         M0State::parse(&r).ok_or_else(old_fw)
     }
 
@@ -455,13 +553,21 @@ impl HackRf {
     /// rounded down to whole packets (0 is 64 KiB); `queue_depth` transfers
     /// are kept in flight (0 is 32). Nothing is started until the first read
     /// (or `start`).
-    pub async fn into_stream(self, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<Stream, StreamError> {
+    pub async fn into_stream(
+        self,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<Stream, StreamError> {
         Stream::new(self, transfer_bytes, queue_depth)
     }
 
     /// The radio transmitting, as a [`TxStream`] at the rate it holds; see
     /// [`TxStream`]. `transfer_bytes` 0 is 32 KiB, `queue_depth` 0 is 8.
-    pub async fn into_tx_stream(self, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<TxStream, StreamError> {
+    pub async fn into_tx_stream(
+        self,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<TxStream, StreamError> {
         TxStream::new(self, transfer_bytes, queue_depth)
     }
 }
@@ -473,7 +579,14 @@ impl Drop for HackRf {
         // transceiver off whatever happened.
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let req = ControlOut { control_type: ControlType::Vendor, recipient: Recipient::Device, request: SET_TRANSCEIVER_MODE, value: MODE_OFF, index: 0, data: &[] };
+            let req = ControlOut {
+                control_type: ControlType::Vendor,
+                recipient: Recipient::Device,
+                request: SET_TRANSCEIVER_MODE,
+                value: MODE_OFF,
+                index: 0,
+                data: &[],
+            };
             let _ = nusb::MaybeFuture::wait(self.device.control_out(req, CTRL_TIMEOUT));
         }
     }

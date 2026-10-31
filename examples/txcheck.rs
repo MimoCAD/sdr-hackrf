@@ -33,7 +33,9 @@ fn line(tag: &str, t: f64, written: u64, m: &M0State) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) != Some("--cabled") {
-        eprintln!("txcheck: refusing to key — pass --cabled only when the HackRF is cabled to a receiver through attenuation");
+        eprintln!(
+            "txcheck: refusing to key — pass --cabled only when the HackRF is cabled to a receiver through attenuation"
+        );
         std::process::exit(2);
     }
     let rate: f64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(8e6);
@@ -53,7 +55,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut chunk = vec![Iq::default(); spt];
     let mut fill = |chunk: &mut [Iq]| {
         for s in chunk.iter_mut() {
-            *s = Iq { i: (amplitude * phase.cos()) as i16, q: (amplitude * phase.sin()) as i16 };
+            *s = Iq {
+                i: (amplitude * phase.cos()) as i16,
+                q: (amplitude * phase.sin()) as i16,
+            };
             phase = (phase + step) % TAU;
         }
     };
@@ -65,13 +70,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fill(&mut chunk);
         tx.send(&chunk)?;
         if !stalled && t0.elapsed() >= Duration::from_secs(1) {
-            line("stall-from", t0.elapsed().as_secs_f64(), tx.written() * 2, &tx.m0_state()?);
+            line(
+                "stall-from",
+                t0.elapsed().as_secs_f64(),
+                tx.written() * 2,
+                &tx.m0_state()?,
+            );
             std::thread::sleep(Duration::from_millis(stall_ms));
-            line("stall-to", t0.elapsed().as_secs_f64(), tx.written() * 2, &tx.m0_state()?);
+            line(
+                "stall-to",
+                t0.elapsed().as_secs_f64(),
+                tx.written() * 2,
+                &tx.m0_state()?,
+            );
             stalled = true;
         }
         if t0.elapsed() >= next_poll {
-            line("poll", t0.elapsed().as_secs_f64(), tx.written() * 2, &tx.m0_state()?);
+            line(
+                "poll",
+                t0.elapsed().as_secs_f64(),
+                tx.written() * 2,
+                &tx.m0_state()?,
+            );
             next_poll += Duration::from_millis(250);
         }
     }
@@ -83,6 +103,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         t_finish.elapsed().as_secs_f64() * 1e3,
         f.report
     );
-    line("after-finish", t0.elapsed().as_secs_f64(), written * 2, &f.hackrf.m0_state()?);
+    line(
+        "after-finish",
+        t0.elapsed().as_secs_f64(),
+        written * 2,
+        &f.hackrf.m0_state()?,
+    );
     Ok(())
 }

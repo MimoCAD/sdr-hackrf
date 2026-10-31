@@ -37,7 +37,7 @@ use sdr_core::time::Instant;
 use sdr_core::usb_stream::{BulkIqStream, WireSample};
 use sdr_core::{Error, Iq, RecvInfo, Result, TuneRequest, TuneResult};
 
-use crate::proto::{EP_BULK_IN, M0_MODE_RX, MODE_OFF, MODE_RECEIVE, M0State, unwrap_count};
+use crate::proto::{EP_BULK_IN, M0_MODE_RX, M0State, MODE_OFF, MODE_RECEIVE, unwrap_count};
 use crate::{BACKEND, HackRf, Stage};
 
 /// The wire format: signed 8-bit I then Q.
@@ -112,7 +112,10 @@ impl Finished {
 /// Wire bytes widened as the engine widens them.
 pub(crate) fn widen(bytes: &[u8]) -> Vec<Iq> {
     let (pairs, _) = bytes.as_chunks::<2>();
-    pairs.iter().map(|&[i, q]| WIRE_FORMAT.widen(i, q)).collect()
+    pairs
+        .iter()
+        .map(|&[i, q]| WIRE_FORMAT.widen(i, q))
+        .collect()
 }
 
 /// A stream could not be made; the radio is handed back.
@@ -123,7 +126,9 @@ pub struct StreamError {
 
 impl fmt::Debug for StreamError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StreamError").field("error", &self.error).finish_non_exhaustive()
+        f.debug_struct("StreamError")
+            .field("error", &self.error)
+            .finish_non_exhaustive()
     }
 }
 
@@ -137,11 +142,19 @@ impl core::error::Error for StreamError {}
 
 /// An error re-labelled with the step it failed at.
 pub(crate) fn at(step: &'static str) -> impl Fn(Error) -> Error {
-    move |e| Error::Device { backend: BACKEND, context: step, message: e.to_string() }
+    move |e| Error::Device {
+        backend: BACKEND,
+        context: step,
+        message: e.to_string(),
+    }
 }
 
 pub(crate) fn finished_error() -> Error {
-    Error::Device { backend: BACKEND, context: "stream", message: "the stream has finished".into() }
+    Error::Device {
+        backend: BACKEND,
+        context: "stream",
+        message: "the stream has finished".into(),
+    }
 }
 
 /// What the stream knows, readable by every handle at once.
@@ -193,16 +206,44 @@ impl Snapshot {
 /// the host's count, at most 2³¹ behind the firmware's (its 32-bit count
 /// is unwrapped against it); `mode` the M0's active mode while the stream
 /// runs (before it has switched, the count is still the last run's).
-pub(crate) async fn placed_change<T>(h: &mut HackRf, started: bool, bytes: u64, mode: u32, f: impl AsyncFnOnce(&mut HackRf) -> Result<T>) -> Result<(T, Break)> {
-    let place = |m: &M0State| if started && m.active_mode == mode { unwrap_count(m.m0_count, bytes) / 2 } else { 0 };
-    let before = if started { Some(h.m0_state().await.map_err(at("change: the count before"))?) } else { None };
+pub(crate) async fn placed_change<T>(
+    h: &mut HackRf,
+    started: bool,
+    bytes: u64,
+    mode: u32,
+    f: impl AsyncFnOnce(&mut HackRf) -> Result<T>,
+) -> Result<(T, Break)> {
+    let place = |m: &M0State| {
+        if started && m.active_mode == mode {
+            unwrap_count(m.m0_count, bytes) / 2
+        } else {
+            0
+        }
+    };
+    let before = if started {
+        Some(h.m0_state().await.map_err(at("change: the count before"))?)
+    } else {
+        None
+    };
     let t0 = Instant::now();
     let t = f(h).await?;
     let took = t0.elapsed();
-    let after = if started { Some(h.m0_state().await.map_err(at("change: the count after"))?) } else { None };
+    let after = if started {
+        Some(h.m0_state().await.map_err(at("change: the count after"))?)
+    } else {
+        None
+    };
     let at_sample = before.as_ref().map_or(0, place);
     let settled_at = after.as_ref().map_or(0, place).max(at_sample);
-    Ok((t, Break { at_sample, settled_at, took, rf_hz: h.freq() }))
+    Ok((
+        t,
+        Break {
+            at_sample,
+            settled_at,
+            took,
+            rf_hz: h.freq(),
+        },
+    ))
 }
 
 /// What a stream's handles share. Reading takes `rx`, changing takes
@@ -229,7 +270,11 @@ impl Shared {
         }
         rx.start().map_err(at("start: the queue"))?;
         let g = self.radio.lock().await;
-        g.as_ref().ok_or_else(finished_error)?.set_transceiver_mode(MODE_RECEIVE).await.map_err(at("start: receive"))?;
+        g.as_ref()
+            .ok_or_else(finished_error)?
+            .set_transceiver_mode(MODE_RECEIVE)
+            .await
+            .map_err(at("start: receive"))?;
         self.started.store(true, Ordering::Release);
         Ok(())
     }
@@ -266,7 +311,14 @@ impl Shared {
         let mut g = self.radio.lock().await;
         let h = g.as_mut().ok_or_else(finished_error)?;
         let bytes = self.snap().bytes;
-        let r = placed_change(h, self.started.load(Ordering::Acquire), bytes, M0_MODE_RX, f).await;
+        let r = placed_change(
+            h,
+            self.started.load(Ordering::Acquire),
+            bytes,
+            M0_MODE_RX,
+            f,
+        )
+        .await;
         let mut s = self.snap();
         s.settings(h);
         if let Ok((_, b)) = &r {
@@ -347,7 +399,10 @@ macro_rules! changes {
             /// Run `f` on the radio while samples flow; returns what `f`
             /// returned and the [`Break`] placing it. Before the stream has
             /// started, the break is at sample 0.
-            pub async fn reconfigure<T>(&self, f: impl AsyncFnOnce(&mut HackRf) -> Result<T>) -> Result<(T, Break)> {
+            pub async fn reconfigure<T>(
+                &self,
+                f: impl AsyncFnOnce(&mut HackRf) -> Result<T>,
+            ) -> Result<(T, Break)> {
                 self.shared.change(f).await
             }
 
@@ -358,24 +413,37 @@ macro_rules! changes {
 
             /// [`HackRf::set_gain`] while receiving.
             pub async fn set_gain(&self, db: f64) -> Result<Break> {
-                self.reconfigure(async |h| h.set_gain(db).await).await.map(|(_, b)| b)
+                self.reconfigure(async |h| h.set_gain(db).await)
+                    .await
+                    .map(|(_, b)| b)
             }
 
             /// [`HackRf::set_stage_level`] while receiving.
             pub async fn set_stage_level(&self, stage: Stage, level: usize) -> Result<Break> {
-                self.reconfigure(async |h| h.set_stage_level(stage, level).await).await.map(|(_, b)| b)
+                self.reconfigure(async |h| h.set_stage_level(stage, level).await)
+                    .await
+                    .map(|(_, b)| b)
             }
 
             /// [`HackRf::set_bandwidth`] while receiving.
             pub async fn set_bandwidth(&self, hz: f64) -> Result<Break> {
-                self.reconfigure(async |h| h.set_bandwidth(hz).await).await.map(|(_, b)| b)
+                self.reconfigure(async |h| h.set_bandwidth(hz).await)
+                    .await
+                    .map(|(_, b)| b)
             }
 
             /// The firmware's counters now ([`HackRf::m0_state`]): reading
             /// them while samples flow cost nothing at 10 Msps polled every
             /// 10 ms.
             pub async fn m0_state(&self) -> Result<M0State> {
-                self.shared.radio.lock().await.as_ref().ok_or_else(finished_error)?.m0_state().await
+                self.shared
+                    .radio
+                    .lock()
+                    .await
+                    .as_ref()
+                    .ok_or_else(finished_error)?
+                    .m0_state()
+                    .await
             }
         }
     };
@@ -395,7 +463,11 @@ macro_rules! reads {
             /// Samples into `buf`, widened to [`Iq`] (full scale ±32768);
             /// at most `timeout_secs` waiting (`timed_out` then set).
             /// Starts the stream on the first call.
-            pub async fn recv_into(&mut self, buf: &mut [Iq], timeout_secs: f64) -> Result<RecvInfo> {
+            pub async fn recv_into(
+                &mut self,
+                buf: &mut [Iq],
+                timeout_secs: f64,
+            ) -> Result<RecvInfo> {
                 self.shared.recv_into(buf, timeout_secs).await
             }
 
@@ -418,53 +490,123 @@ reads!(Stream);
 reads!(ReadHalf);
 
 impl Stream {
-    pub(crate) fn new(h: HackRf, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<Stream, StreamError> {
+    pub(crate) fn new(
+        h: HackRf,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<Stream, StreamError> {
         if h.rate() <= 0.0 {
-            let error = Error::Device { backend: BACKEND, context: "stream", message: "set the sample rate before streaming".into() };
-            return Err(StreamError { hackrf: Box::new(h), error });
+            let error = Error::Device {
+                backend: BACKEND,
+                context: "stream",
+                message: "set the sample rate before streaming".into(),
+            };
+            return Err(StreamError {
+                hackrf: Box::new(h),
+                error,
+            });
         }
         let endpoint = match h.interface().endpoint::<Bulk, In>(EP_BULK_IN) {
             Ok(e) => e,
-            Err(e) => return Err(StreamError { hackrf: Box::new(h), error: crate::usb_err("claim bulk endpoint", e) }),
+            Err(e) => {
+                return Err(StreamError {
+                    hackrf: Box::new(h),
+                    error: crate::usb_err("claim bulk endpoint", e),
+                });
+            }
         };
-        let transfer_bytes = if transfer_bytes > 0 { transfer_bytes } else { DEFAULT_TRANSFER_BYTES };
-        let queue_depth = if queue_depth > 0 { queue_depth } else { DEFAULT_QUEUE_DEPTH };
-        let rx = BulkIqStream::new(BACKEND, endpoint, WIRE_FORMAT, transfer_bytes, queue_depth, h.rate());
+        let transfer_bytes = if transfer_bytes > 0 {
+            transfer_bytes
+        } else {
+            DEFAULT_TRANSFER_BYTES
+        };
+        let queue_depth = if queue_depth > 0 {
+            queue_depth
+        } else {
+            DEFAULT_QUEUE_DEPTH
+        };
+        let rx = BulkIqStream::new(
+            BACKEND,
+            endpoint,
+            WIRE_FORMAT,
+            transfer_bytes,
+            queue_depth,
+            h.rate(),
+        );
         let snapshot = Mutex::new(Snapshot::of(&h, rx.max_num_samps()));
-        Ok(Stream { shared: Arc::new(Shared { radio: Lock::new(Some(h)), rx: Lock::new(Some(rx)), snapshot, started: AtomicBool::new(false) }) })
+        // In a browser the page is one thread and nusb's device is not
+        // Send, so clippy sees an Arc that could be an Rc; the handles
+        // share it the same way on every target, by one code path.
+        #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
+        let shared = Arc::new(Shared {
+            radio: Lock::new(Some(h)),
+            rx: Lock::new(Some(rx)),
+            snapshot,
+            started: AtomicBool::new(false),
+        });
+        Ok(Stream { shared })
     }
 
     /// The two halves, each usable on its own thread or task.
     pub fn split(self) -> (ReadHalf, Control) {
-        (ReadHalf { shared: Arc::clone(&self.shared) }, Control { shared: self.shared })
+        (
+            ReadHalf {
+                shared: Arc::clone(&self.shared),
+            },
+            Control {
+                shared: self.shared,
+            },
+        )
     }
 
     /// The halves of one stream joined again; handed back if they are not
     /// the same stream's, or a clone of the control still exists.
-    pub fn reunite(read: ReadHalf, control: Control) -> core::result::Result<Stream, (ReadHalf, Control)> {
+    pub fn reunite(
+        read: ReadHalf,
+        control: Control,
+    ) -> core::result::Result<Stream, (ReadHalf, Control)> {
         if !Arc::ptr_eq(&read.shared, &control.shared) || Arc::strong_count(&read.shared) != 2 {
             return Err((read, control));
         }
         drop(read);
-        Ok(Stream { shared: control.shared })
+        Ok(Stream {
+            shared: control.shared,
+        })
     }
 
     /// Turn the transceiver off, hand out the samples still on their way,
     /// and read the firmware's counters: the radio back, the report, the
     /// tail.
     pub async fn finish(self) -> Result<Finished> {
-        let mut rx = self.shared.rx.lock().await.take().ok_or_else(finished_error)?;
-        let h = self.shared.radio.lock().await.take().ok_or_else(finished_error)?;
+        let mut rx = self
+            .shared
+            .rx
+            .lock()
+            .await
+            .take()
+            .ok_or_else(finished_error)?;
+        let h = self
+            .shared
+            .radio
+            .lock()
+            .await
+            .take()
+            .ok_or_else(finished_error)?;
         self.shared.snap().finished = true;
         let mut tail = Vec::new();
         let mut m0 = None;
         if self.shared.started.load(Ordering::Acquire) {
-            h.set_transceiver_mode(MODE_OFF).await.map_err(at("finish: off"))?;
+            h.set_transceiver_mode(MODE_OFF)
+                .await
+                .map_err(at("finish: off"))?;
             sdr_core::time::sleep(FINISH_DRAIN).await;
             rx.hold_async().await.map_err(at("finish: the queue"))?;
             let mut buf = vec![0u8; 2 * rx.max_num_samps()];
             loop {
-                let (n, _) = rx.recv_bytes_async(&mut buf, 0.0).await.map_err(at("finish: the tail"))?;
+                let (n, _) = rx
+                    .recv_bytes_async(&mut buf, 0.0)
+                    .await
+                    .map_err(at("finish: the tail"))?;
                 if n == 0 {
                     break;
                 }
@@ -486,7 +628,11 @@ impl Stream {
             left_in_device: produced.saturating_sub(host_bytes) / 2,
             breaks: self.shared.snap().breaks.clone(),
         };
-        Ok(Finished { hackrf: h, report, tail })
+        Ok(Finished {
+            hackrf: h,
+            report,
+            tail,
+        })
     }
 }
 
@@ -496,6 +642,15 @@ mod tests {
 
     #[test]
     fn wire_bytes_widen_signed() {
-        assert_eq!(widen(&[0, 0, 127, 128, 7]), vec![Iq { i: 0, q: 0 }, Iq { i: 127 << 8, q: -128 << 8 }]);
+        assert_eq!(
+            widen(&[0, 0, 127, 128, 7]),
+            vec![
+                Iq { i: 0, q: 0 },
+                Iq {
+                    i: 127 << 8,
+                    q: -128 << 8
+                }
+            ]
+        );
     }
 }

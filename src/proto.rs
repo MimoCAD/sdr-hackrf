@@ -150,7 +150,16 @@ mod tests {
         r[16] = 1;
         r[20..24].copy_from_slice(&3_947_232u32.to_le_bytes());
         let m = M0State::parse(&r).unwrap();
-        assert_eq!((m.active_mode, m.m0_count, m.m4_count, m.num_shortfalls, m.longest_shortfall), (2, 60_045_920, 60_030_976, 1, 3_947_232));
+        assert_eq!(
+            (
+                m.active_mode,
+                m.m0_count,
+                m.m4_count,
+                m.num_shortfalls,
+                m.longest_shortfall
+            ),
+            (2, 60_045_920, 60_030_976, 1, 3_947_232)
+        );
         assert_eq!(M0State::parse(&r[..39]), None);
     }
 

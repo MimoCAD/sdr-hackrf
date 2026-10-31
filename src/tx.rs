@@ -35,7 +35,7 @@ use sdr_core::sync::Lock;
 use sdr_core::time::Instant;
 use sdr_core::{Error, Iq, Result, TuneRequest, TuneResult};
 
-use crate::proto::{EP_BULK_OUT, MODE_OFF, MODE_TRANSMIT, M0State, unwrap_count};
+use crate::proto::{EP_BULK_OUT, M0State, MODE_OFF, MODE_TRANSMIT, unwrap_count};
 use crate::session::{Break, Snapshot, StreamError, at, finished_error, placed_change};
 use crate::{BACKEND, HackRf};
 
@@ -79,13 +79,19 @@ pub struct TxFinished {
 
 /// The next completion within `timeout`, `None` if none came.
 #[cfg(not(target_arch = "wasm32"))]
-async fn next_completion(endpoint: &mut nusb::Endpoint<Bulk, Out>, timeout: Duration) -> Option<Completion> {
+async fn next_completion(
+    endpoint: &mut nusb::Endpoint<Bulk, Out>,
+    timeout: Duration,
+) -> Option<Completion> {
     endpoint.wait_next_complete(timeout)
 }
 
 /// The next completion within `timeout`, `None` if none came.
 #[cfg(target_arch = "wasm32")]
-async fn next_completion(endpoint: &mut nusb::Endpoint<Bulk, Out>, timeout: Duration) -> Option<Completion> {
+async fn next_completion(
+    endpoint: &mut nusb::Endpoint<Bulk, Out>,
+    timeout: Duration,
+) -> Option<Completion> {
     use core::future::{Future, poll_fn};
     use core::task::Poll;
     let mut sleep = core::pin::pin!(sdr_core::time::sleep(timeout));
@@ -123,7 +129,11 @@ impl TxCore {
         let Some(c) = next_completion(&mut self.endpoint, timeout).await else {
             return Ok(false);
         };
-        c.status.map_err(|e| Error::Usb { backend: BACKEND, context: "bulk send", message: e.to_string() })?;
+        c.status.map_err(|e| Error::Usb {
+            backend: BACKEND,
+            context: "bulk send",
+            message: e.to_string(),
+        })?;
         Ok(true)
     }
 }
@@ -147,7 +157,11 @@ impl Shared {
             return Ok(());
         }
         let g = self.radio.lock().await;
-        g.as_ref().ok_or_else(finished_error)?.set_transceiver_mode(MODE_TRANSMIT).await.map_err(at("start: transmit"))?;
+        g.as_ref()
+            .ok_or_else(finished_error)?
+            .set_transceiver_mode(MODE_TRANSMIT)
+            .await
+            .map_err(at("start: transmit"))?;
         self.started.store(true, Ordering::Release);
         Ok(())
     }
@@ -160,7 +174,11 @@ impl Shared {
                 self.start().await?;
             }
             if !core.reap(SEND_TIMEOUT).await? {
-                return Err(Error::Device { backend: BACKEND, context: "bulk send", message: "transfer completion timed out".into() });
+                return Err(Error::Device {
+                    backend: BACKEND,
+                    context: "bulk send",
+                    message: "transfer completion timed out".into(),
+                });
             }
         }
         Ok(())
@@ -282,7 +300,10 @@ macro_rules! changes {
         impl $t {
             /// Run `f` on the radio while it transmits; returns what `f`
             /// returned and the [`Break`] placing it (in samples written).
-            pub async fn reconfigure<T>(&self, f: impl AsyncFnOnce(&mut HackRf) -> Result<T>) -> Result<(T, Break)> {
+            pub async fn reconfigure<T>(
+                &self,
+                f: impl AsyncFnOnce(&mut HackRf) -> Result<T>,
+            ) -> Result<(T, Break)> {
                 self.shared.change(f).await
             }
 
@@ -293,17 +314,28 @@ macro_rules! changes {
 
             /// [`HackRf::set_txvga_gain`] while transmitting.
             pub async fn set_txvga_gain(&self, db: u16) -> Result<Break> {
-                self.reconfigure(async |h| h.set_txvga_gain(db).await).await.map(|(_, b)| b)
+                self.reconfigure(async |h| h.set_txvga_gain(db).await)
+                    .await
+                    .map(|(_, b)| b)
             }
 
             /// [`HackRf::set_amp`] while transmitting.
             pub async fn set_amp(&self, on: bool) -> Result<Break> {
-                self.reconfigure(async |h| h.set_amp(on).await).await.map(|(_, b)| b)
+                self.reconfigure(async |h| h.set_amp(on).await)
+                    .await
+                    .map(|(_, b)| b)
             }
 
             /// The firmware's counters now ([`HackRf::m0_state`]).
             pub async fn m0_state(&self) -> Result<M0State> {
-                self.shared.radio.lock().await.as_ref().ok_or_else(finished_error)?.m0_state().await
+                self.shared
+                    .radio
+                    .lock()
+                    .await
+                    .as_ref()
+                    .ok_or_else(finished_error)?
+                    .m0_state()
+                    .await
             }
         }
     };
@@ -323,7 +355,10 @@ macro_rules! writes {
             /// Samples to send, narrowed to the wire's signed 8 bits (the
             /// top byte, as the receive side widens).
             pub async fn send(&mut self, iq: &[Iq]) -> Result<()> {
-                let bytes: Vec<u8> = iq.iter().flat_map(|s| [(s.i >> 8) as u8, (s.q >> 8) as u8]).collect();
+                let bytes: Vec<u8> = iq
+                    .iter()
+                    .flat_map(|s| [(s.i >> 8) as u8, (s.q >> 8) as u8])
+                    .collect();
                 self.shared.write(&bytes).await.map(|_| ())
             }
 
@@ -356,38 +391,90 @@ writes!(TxStream);
 writes!(WriteHalf);
 
 impl TxStream {
-    pub(crate) fn new(h: HackRf, transfer_bytes: usize, queue_depth: usize) -> core::result::Result<TxStream, StreamError> {
+    pub(crate) fn new(
+        h: HackRf,
+        transfer_bytes: usize,
+        queue_depth: usize,
+    ) -> core::result::Result<TxStream, StreamError> {
         if h.rate() <= 0.0 {
-            let error = Error::Device { backend: BACKEND, context: "tx stream", message: "set the sample rate before streaming".into() };
-            return Err(StreamError { hackrf: Box::new(h), error });
+            let error = Error::Device {
+                backend: BACKEND,
+                context: "tx stream",
+                message: "set the sample rate before streaming".into(),
+            };
+            return Err(StreamError {
+                hackrf: Box::new(h),
+                error,
+            });
         }
         let endpoint = match h.interface().endpoint::<Bulk, Out>(EP_BULK_OUT) {
             Ok(e) => e,
-            Err(e) => return Err(StreamError { hackrf: Box::new(h), error: crate::usb_err("claim bulk endpoint", e) }),
+            Err(e) => {
+                return Err(StreamError {
+                    hackrf: Box::new(h),
+                    error: crate::usb_err("claim bulk endpoint", e),
+                });
+            }
         };
         // Whole packets, as the firmware's DMA takes them.
         let mps = endpoint.max_packet_size().max(64);
-        let transfer_bytes = if transfer_bytes > 0 { transfer_bytes } else { DEFAULT_TRANSFER_BYTES };
+        let transfer_bytes = if transfer_bytes > 0 {
+            transfer_bytes
+        } else {
+            DEFAULT_TRANSFER_BYTES
+        };
         let transfer_bytes = (transfer_bytes / mps).max(1) * mps;
-        let queue_depth = if queue_depth > 0 { queue_depth } else { DEFAULT_QUEUE_DEPTH };
-        let core = TxCore { endpoint, transfer_bytes, queue_depth, stage: Vec::new(), submitted: 0 };
+        let queue_depth = if queue_depth > 0 {
+            queue_depth
+        } else {
+            DEFAULT_QUEUE_DEPTH
+        };
+        let core = TxCore {
+            endpoint,
+            transfer_bytes,
+            queue_depth,
+            stage: Vec::new(),
+            submitted: 0,
+        };
         let snapshot = Mutex::new(Snapshot::of(&h, transfer_bytes / 2));
-        Ok(TxStream { shared: Arc::new(Shared { radio: Lock::new(Some(h)), tx: Lock::new(Some(core)), snapshot, started: AtomicBool::new(false) }) })
+        // In a browser the page is one thread and nusb's device is not
+        // Send, so clippy sees an Arc that could be an Rc; the handles
+        // share it the same way on every target, by one code path.
+        #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
+        let shared = Arc::new(Shared {
+            radio: Lock::new(Some(h)),
+            tx: Lock::new(Some(core)),
+            snapshot,
+            started: AtomicBool::new(false),
+        });
+        Ok(TxStream { shared })
     }
 
     /// The two halves, each usable on its own thread or task.
     pub fn split(self) -> (WriteHalf, TxControl) {
-        (WriteHalf { shared: Arc::clone(&self.shared) }, TxControl { shared: self.shared })
+        (
+            WriteHalf {
+                shared: Arc::clone(&self.shared),
+            },
+            TxControl {
+                shared: self.shared,
+            },
+        )
     }
 
     /// The halves of one stream joined again; handed back if they are not
     /// the same stream's, or a clone of the control still exists.
-    pub fn reunite(write: WriteHalf, control: TxControl) -> core::result::Result<TxStream, (WriteHalf, TxControl)> {
+    pub fn reunite(
+        write: WriteHalf,
+        control: TxControl,
+    ) -> core::result::Result<TxStream, (WriteHalf, TxControl)> {
         if !Arc::ptr_eq(&write.shared, &control.shared) || Arc::strong_count(&write.shared) != 2 {
             return Err((write, control));
         }
         drop(write);
-        Ok(TxStream { shared: control.shared })
+        Ok(TxStream {
+            shared: control.shared,
+        })
     }
 
     /// Pad the last transfer with zeros, key up if nothing has yet, wait
@@ -395,13 +482,25 @@ impl TxStream {
     /// counters: the radio back and the report.
     pub async fn finish(self) -> Result<TxFinished> {
         self.shared.flush().await?;
-        let mut core = self.shared.tx.lock().await.take().ok_or_else(finished_error)?;
+        let mut core = self
+            .shared
+            .tx
+            .lock()
+            .await
+            .take()
+            .ok_or_else(finished_error)?;
         let mut m0 = M0State::default();
         let mut sent_all = core.submitted == 0;
         if core.submitted > 0 {
             self.shared.start().await?;
         }
-        let h = self.shared.radio.lock().await.take().ok_or_else(finished_error)?;
+        let h = self
+            .shared
+            .radio
+            .lock()
+            .await
+            .take()
+            .ok_or_else(finished_error)?;
         self.shared.snap().finished = true;
         if core.submitted > 0 {
             while core.endpoint.pending() > 0 {
@@ -412,8 +511,12 @@ impl TxStream {
             // Every transfer is in the radio: a shortfall so far was a
             // starved transmission, one from now on is only the end.
             m0 = h.m0_state().await.map_err(at("finish: the counters"))?;
-            let left = core.submitted.saturating_sub(unwrap_count(m0.m0_count, core.submitted));
-            let deadline = Instant::now() + Duration::from_secs_f64(left as f64 / 2.0 / h.rate()) + FINISH_SLACK;
+            let left = core
+                .submitted
+                .saturating_sub(unwrap_count(m0.m0_count, core.submitted));
+            let deadline = Instant::now()
+                + Duration::from_secs_f64(left as f64 / 2.0 / h.rate())
+                + FINISH_SLACK;
             loop {
                 let now = h.m0_state().await.map_err(at("finish: the count"))?;
                 if unwrap_count(now.m0_count, core.submitted) >= core.submitted {
@@ -426,11 +529,15 @@ impl TxStream {
                 sdr_core::time::sleep(FINISH_POLL).await;
             }
         }
-        h.set_transceiver_mode(MODE_OFF).await.map_err(at("finish: off"))?;
+        h.set_transceiver_mode(MODE_OFF)
+            .await
+            .map_err(at("finish: off"))?;
         #[cfg(not(target_arch = "wasm32"))]
         {
             core.endpoint.cancel_all();
-            while core.endpoint.pending() > 0 && core.reap(Duration::from_millis(200)).await.unwrap_or(false) {}
+            while core.endpoint.pending() > 0
+                && core.reap(Duration::from_millis(200)).await.unwrap_or(false)
+            {}
         }
         let report = TxReport {
             samples: core.submitted / 2,
